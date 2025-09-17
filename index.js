@@ -1,3 +1,5 @@
+import utils from "./utils.js";
+
 const {
   stringToHex,
   hexToString,
@@ -5,7 +7,9 @@ const {
   binaryToGates,
   formatVehiclePlate,
   formatUUID,
-} = require("./utils");
+} = utils;
+
+import constants from "./constants.js";
 
 const {
   PURPOSE_OF_VISIT_CODES,
@@ -13,7 +17,7 @@ const {
   HEX_PADDING,
   IDENTITY_NUMBER_LENGTH,
   BOOLEAN_VALUES,
-} = require("./constants");
+} = constants;
 
 /**
  * Compresses payload data into a more compact format using hexadecimal encoding
@@ -201,7 +205,7 @@ console.log(
   }`
 );
 
-module.exports = {
+export default {
   compress,
   decompress,
 };

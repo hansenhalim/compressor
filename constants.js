@@ -30,7 +30,7 @@ const BOOLEAN_VALUES = {
   FALSE: "00",
 };
 
-module.exports = {
+export default {
   PURPOSE_OF_VISIT_CODES,
   PURPOSE_OF_VISIT_LABELS,
   HEX_PADDING,
