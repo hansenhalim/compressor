@@ -5,7 +5,7 @@ const {
   binaryToGates,
   formatVehiclePlate,
   formatUUID,
-} = require('./utils');
+} = require("./utils");
 
 const {
   PURPOSE_OF_VISIT_CODES,
@@ -13,7 +13,7 @@ const {
   HEX_PADDING,
   IDENTITY_NUMBER_LENGTH,
   BOOLEAN_VALUES,
-} = require('./constants');
+} = require("./constants");
 
 /**
  * Compresses payload data into a more compact format using hexadecimal encoding
@@ -29,7 +29,7 @@ const {
  * @param {number} payload.transit_at - Timestamp of transit
  * @param {boolean} payload.visited_gate_4 - Whether gate 4 was visited
  * @param {string} payload.notes - Additional notes
- * @returns {Object} Compressed payload with hexadecimal encoded values
+ * @returns {string} Compressed payload with hexadecimal encoded values
  */
 function compress(payload) {
   const compressedData = {};
@@ -50,7 +50,9 @@ function compress(payload) {
   compressedData.vehicle_plate_number = stringToHex(cleanVehiclePlate);
 
   // Map purpose of visit to code or use original value
-  const purposeCode = PURPOSE_OF_VISIT_CODES[payload.purpose_of_visit] || payload.purpose_of_visit;
+  const purposeCode =
+    PURPOSE_OF_VISIT_CODES[payload.purpose_of_visit] ||
+    payload.purpose_of_visit;
   compressedData.purpose_of_visit = stringToHex(purposeCode);
 
   compressedData.destination_name = stringToHex(payload.destination_name);
@@ -77,19 +79,39 @@ function compress(payload) {
 
   compressedData.notes = stringToHex(payload.notes);
 
-  return compressedData;
+  // Return concatenated string of all values separated by 1c HEX
+  const separator = "1c"; // 1c HEX character (File Separator)
+  return Object.values(compressedData).join(separator);
 }
 
 /**
- * Decompresses hexadecimal encoded data back to original payload format
- * @param {Object} compressedData - The compressed data object with hex values
+ * Decompresses concatenated string back to original payload format
+ * @param {string} compressedString - The compressed concatenated string with 1c HEX separators
  * @returns {Object} Original payload object with readable values
  */
-function decompress(compressedData) {
+function decompress(compressedString) {
   const originalPayload = {};
 
+  // Split the concatenated string by 1c HEX separator
+  const separator = "1c";
+  const values = compressedString.split(separator);
+
+  // Map values back to their original properties
+  const [
+    identityHex,
+    fullnameHex,
+    vehiclePlateHex,
+    purposeHex,
+    destinationHex,
+    enterGatesHex,
+    exitGatesHex,
+    visitId,
+    transitAtHex,
+    visitedGate4,
+    notesHex,
+  ] = values;
+
   // Reconstruct identity number with asterisks
-  const identityHex = compressedData.identity_number;
   const identityDigits = parseInt(identityHex, 16)
     .toString()
     .padStart(IDENTITY_NUMBER_LENGTH, "0");
@@ -97,33 +119,34 @@ function decompress(compressedData) {
   const lastThreeDigits = identityDigits.substring(3, 6);
   originalPayload.identity_number = `${firstThreeDigits}**********${lastThreeDigits}`;
 
-  originalPayload.fullname = hexToString(compressedData.fullname);
+  originalPayload.fullname = hexToString(fullnameHex);
 
   // Decode and format vehicle plate number
-  const vehicleString = hexToString(compressedData.vehicle_plate_number);
+  const vehicleString = hexToString(vehiclePlateHex);
   originalPayload.vehicle_plate_number = formatVehiclePlate(vehicleString);
 
   // Decode purpose of visit and map back to label
-  const purposeCode = hexToString(compressedData.purpose_of_visit);
-  originalPayload.purpose_of_visit = PURPOSE_OF_VISIT_LABELS[purposeCode] || purposeCode;
+  const purposeCode = hexToString(purposeHex);
+  originalPayload.purpose_of_visit =
+    PURPOSE_OF_VISIT_LABELS[purposeCode] || purposeCode;
 
-  originalPayload.destination_name = hexToString(compressedData.destination_name);
+  originalPayload.destination_name = hexToString(destinationHex);
 
   // Convert hex gate values back to arrays
-  const enterGatesValue = parseInt(compressedData.allowed_gate_for_enter, 16);
+  const enterGatesValue = parseInt(enterGatesHex, 16);
   originalPayload.allowed_gate_for_enter = binaryToGates(enterGatesValue);
 
-  const exitGatesValue = parseInt(compressedData.allowed_gate_for_exit, 16);
+  const exitGatesValue = parseInt(exitGatesHex, 16);
   originalPayload.allowed_gate_for_exit = binaryToGates(exitGatesValue);
 
   // Reconstruct UUID with dashes
-  originalPayload.visit_id = formatUUID(compressedData.visit_id);
+  originalPayload.visit_id = formatUUID(visitId);
 
-  originalPayload.transit_at = parseInt(compressedData.transit_at, 16);
+  originalPayload.transit_at = parseInt(transitAtHex, 16);
 
-  originalPayload.visited_gate_4 = compressedData.visited_gate_4 === BOOLEAN_VALUES.TRUE;
+  originalPayload.visited_gate_4 = visitedGate4 === BOOLEAN_VALUES.TRUE;
 
-  originalPayload.notes = hexToString(compressedData.notes);
+  originalPayload.notes = hexToString(notesHex);
 
   return originalPayload;
 }
@@ -143,13 +166,40 @@ const samplePayload = {
   notes: "lorem ipsum",
 };
 
-console.log("Original Payload:", samplePayload);
+console.log("📋 Original Payload:");
+console.log(JSON.stringify(samplePayload, null, 2));
+
+const originalSize = Buffer.byteLength(JSON.stringify(samplePayload), "utf8");
 
 const compressedData = compress(samplePayload);
-console.log("Compressed Data:", compressedData);
+const compressedSize = compressedData.length / 2; // Each hex pair represents 1 byte
+
+console.log("\n🗜️  Compression Results:");
+console.log(`Original size: ${originalSize} bytes`);
+console.log(`Compressed size: ${compressedSize} bytes`);
+console.log(
+  `Compression ratio: ${(
+    ((originalSize - compressedSize) / originalSize) *
+    100
+  ).toFixed(1)}%`
+);
+console.log(`Size reduction: ${originalSize - compressedSize} bytes saved`);
+
+console.log("\n📦 Compressed Data:");
+console.log(compressedData);
 
 const decompressedPayload = decompress(compressedData);
-console.log("Decompressed Payload:", decompressedPayload);
+console.log("\n📂 Decompressed Payload:");
+console.log(JSON.stringify(decompressedPayload, null, 2));
+
+console.log("\n✅ Verification:");
+console.log(
+  `Data integrity: ${
+    JSON.stringify(samplePayload) === JSON.stringify(decompressedPayload)
+      ? "PASSED"
+      : "FAILED"
+  }`
+);
 
 module.exports = {
   compress,
